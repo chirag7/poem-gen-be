@@ -22,8 +22,6 @@ if OPENAI_API_KEY == None:
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# emotion_pipeline = None
-
 @app.route("/")
 def hello_world():
     return "<p>Hello, World!</p>"
