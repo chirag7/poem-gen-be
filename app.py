@@ -1,9 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
-from transformers import pipeline
 import json
 from dotenv import load_dotenv
 import os
+import ssl
+import requests
+
+context = ssl.create_default_context()
 
 load_dotenv()
 
@@ -12,19 +15,23 @@ from openai import OpenAI
 app = Flask(__name__)
 CORS(app, support_credentials=True)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+api_token = os.getenv("HUGGING_FACE_TOKEN")
 
 if OPENAI_API_KEY == None:
     raise Exception("Sorry, OPENAI API KEY not available.")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-emotion_pipeline = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", top_k=5)
+# emotion_pipeline = None
+
+@app.route("/")
+def hello_world():
+    return "<p>Hello, World!</p>"
 
 
 @app.route("/generatePoem", methods=['POST'])
 @cross_origin(supports_credentials=True)
 def generate_poem():
-
     try:
         # Extract data from the request
         data = request.json
@@ -49,9 +56,18 @@ def generate_poem():
 @app.route("/emotionAnalysis", methods=['POST'])
 @cross_origin(supports_credentials=True)
 def emotion_analysis():
-    txt = json.loads(request.data).get('input')
-    emo = emotion_pipeline(txt)
-    return emo[0] if emo != None and len(emo) >=0 else []
+    try:
+
+        txt = json.loads(request.data).get('input')
+        headers = {"Authorization": f"Bearer {api_token}"}
+        response = requests.post('https://api-inference.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base', data={'inputs':txt}, headers=headers)
+        if response.status_code == 200:
+            return response.json()[0]
+        else:
+            print(response.reason)
+            return jsonify({'error': 'API call failed'}), response.status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host='127.0.0.1', port=8081, ssl_context=context)
